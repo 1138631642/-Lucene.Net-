@@ -1,0 +1,712 @@
+﻿
+Luence.Net只能搜索文本内容，所有当你要搜索的数据不是文本的时候，要先转换为文本数据。
+
+
+【一元分词的使用：】
+作用：把一个文本内容分词一个一个的单词。
+
+步骤：
+1. 引入连个dll
+Luence.Net.dll
+log4net.dll
+
+2. 
+Analyzer analyzer = new StandardAnalyzer();
+TokenStream tokenStream = analyzer.TokenStream("", new StringReader("北京，hi欢迎大家"));
+Net.Analysis.Token token = null;
+while((token=tokenStream.Next())!=null)
+{
+    Console.WriteLine(token.TermText());
+}
+
+-------
+
+【二元分词：】
+作用：把一个文本内容分词一个一个的连个字组成的词。
+
+步骤：
+1. 引入连个dll
+Luence.Net.dll
+log4net.dll
+
+2. 引入人家开源的两个类
+CJKAnalyzer.cs 
+CJKTokenizer.cs
+
+3. 
+Analyzer analyzer = new CJKAnalyzer();
+TokenStream tokenStream = analyzer.TokenStream("", new StringReader("北京，hi欢迎大家"));
+Net.Analysis.Token token = null;
+while((token=tokenStream.Next())!=null)
+{
+    Console.WriteLine(token.TermText());
+}
+
+-------
+
+【 盘古分词：】
+作用：把一个文本内容分词分词正常的词，这个是比较常用的。
+
+
+步骤：
+1. 引入连个dll
+Luence.Net.dll
+log4net.dll
+PanGu.dll
+PanGu.Lucene.Analyzer.dll
+
+2. 把那个存储分词的文件夹复制到目录中，并按下F4，将属性选择始终复制。
+我测试的项目是放在doct这个文件夹中的
+
+3. 
+Analyzer analyzer = new PanGuAnalyzer();
+TokenStream tokenStream = analyzer.TokenStream("", new StringReader("北京，hi欢迎大家"));
+Net.Analysis.Token token = null;
+while((token=tokenStream.Next())!=null)
+{
+    Console.WriteLine(token.TermText());
+}
+
+
+4. 可以通过下载 DICManager 盘古分词打开软件向那个doct文件夹中动态的添加分词。
+添加完分词后点击保存，然后替换掉原来的恶doc.dot文件就行。
+
+--------
+
+【使用lucene.Net实现在windForm搜索查询：】
+
+步骤：
+1. 引入连个dll
+Luence.Net.dll
+log4net.dll
+PanGu.dll
+PanGu.Lucene.Analyzer.dll
+
+2. 把那个存储分词的文件夹复制到目录中，并按下F4，将属性选择始终复制。
+我测试的项目是放在doct这个文件夹中的
+
+
+
+3. 可以通过下载 DICManager 盘古分词打开软件向那个doct文件夹中动态的添加分词。
+添加完分词后点击保存，然后替换掉原来的恶doc.dot文件就行。
+
+4. 将要查询的内容添加到lucene.Net中
+private void button2_Click(object sender, EventArgs e)
+{
+    string indexPath = @"C:\Users\杨ShineLon\Desktop\lucenedir";//注意和磁盘上文件夹的大小写一致，否则会报错。将创建的分词内容放在该目录下。
+    FSDirectory directory = FSDirectory.Open(new DirectoryInfo(indexPath), new NativeFSLockFactory());//指定索引文件(打开索引目录) FS指的是就是FileSystem
+    bool isUpdate = IndexReader.IndexExists(directory);//IndexReader:对索引进行读取的类。该语句的作用：判断索引库文件夹是否存在以及索引特征文件是否存在。
+    if (isUpdate)
+    {
+        //同时只能有一段代码对索引库进行写操作。当使用IndexWriter打开directory时会自动对索引库文件上锁。
+        //如果索引目录被锁定（比如索引过程中程序异常退出），则首先解锁（提示一下：如果我现在正在写着已经加锁了，但是还没有写完，这时候又来一个请求，那么不就解锁了吗？这个问题后面会解决）
+        if (IndexWriter.IsLocked(directory))
+        {
+            IndexWriter.Unlock(directory);
+        }
+    }
+    IndexWriter writer = new IndexWriter(directory, new PanGuAnalyzer(), !isUpdate, Lucene.Net.Index.IndexWriter.MaxFieldLength.UNLIMITED);//向索引库中写索引。这时在这里加锁。
+    for (int i = 1; i <= 6; i++)
+    {
+        string txt = File.ReadAllText(@"C:\Users\杨ShineLon\Desktop\Lucene.Net的使用\测试文本\" + i + ".txt", System.Text.Encoding.Default);//注意这个地方的编码
+        Document document = new Document();//表示一篇文档。
+        //Field.Store.YES:表示是否存储原值。只有当Field.Store.YES在后面才能用doc.Get("number")取出值来.Field.Index. NOT_ANALYZED:不进行分词保存
+        document.Add(new Field("number", i.ToString(), Field.Store.YES, Field.Index.NOT_ANALYZED));
+
+        //Field.Index. ANALYZED:进行分词保存:也就是要进行全文的字段要设置分词 保存（因为要进行模糊查询）
+
+        //Lucene.Net.Documents.Field.TermVector.WITH_POSITIONS_OFFSETS:不仅保存分词还保存分词的距离。
+        document.Add(new Field("body", txt, Field.Store.YES, Field.Index.ANALYZED, Lucene.Net.Documents.Field.TermVector.WITH_POSITIONS_OFFSETS));
+        writer.AddDocument(document);
+
+    }
+    writer.Close();//会自动解锁。
+    directory.Close();//不要忘了Close，否则索引结果搜不到
+
+    MessageBox.Show("添加成功");
+}
+
+
+5. 进行搜索查询
+private void button3_Click(object sender, EventArgs e)
+{
+    string indexPath = @"C:\Users\杨ShineLon\Desktop\lucenedir"; // 从哪里搜索
+    string kw = textBox1.Text; //"面向对象";//对用户输入的搜索条件进行拆分。
+
+    // 对用户输入的内容进行分割
+    List<string> kws = new List<string>();  // 定义一个集合用来存储分割后的分词
+    Analyzer analyzer = new PanGuAnalyzer();
+    TokenStream tokenStream = analyzer.TokenStream("", new StringReader(kw.ToString()));
+    Net.Analysis.Token token = null;
+    while ((token = tokenStream.Next()) != null)
+    {
+        kws.Add(token.TermText());
+        //Console.WriteLine(token.TermText());
+    }
+
+    FSDirectory directory = FSDirectory.Open(new DirectoryInfo(indexPath), new NoLockFactory());
+    IndexReader reader = IndexReader.Open(directory, true);
+    IndexSearcher searcher = new IndexSearcher(reader);
+    //搜索条件
+    PhraseQuery query = new PhraseQuery();
+    //foreach (string word in kw.Split(' '))//先用空格，让用户去分词，空格分隔的就是词“计算机   专业”
+    //{
+    //    query.Add(new Term("body", word));
+    //}
+    //query.Add(new Term("body","语言"));--可以添加查询条件，两者是add关系.顺序没有关系.
+    // query.Add(new Term("body", "大学生"));
+
+    //query.Add(new Term("body", kw));//body中含有kw的文章
+    foreach (var word in kws)
+    {
+        query.Add(new Term("body", word));
+    }
+
+    query.SetSlop(100);//多个查询条件的词之间的最大距离.在文章中相隔太远 也就无意义.（例如 “大学生”这个查询条件和"简历"这个查询条件之间如果间隔的词太多也就没有意义了。）
+    //TopScoreDocCollector是盛放查询结果的容器
+    TopScoreDocCollector collector = TopScoreDocCollector.create(1000, true);
+    searcher.Search(query, null, collector);//根据query查询条件进行查询，查询结果放入collector容器
+    ScoreDoc[] docs = collector.TopDocs(0, collector.GetTotalHits()).scoreDocs;//得到所有查询结果中的文档,GetTotalHits():表示总条数   TopDocs(300, 20);//表示得到300（从300开始），到320（结束）的文档内容.
+    //可以用来实现分页功能
+    this.listBox1.Items.Clear();
+    for (int i = 0; i < docs.Length; i++)
+    {
+        //
+        //搜索ScoreDoc[]只能获得文档的id,这样不会把查询结果的Document一次性加载到内存中。降低了内存压力，需要获得文档的详细内容的时候通过searcher.Doc来根据文档id来获得文档的详细内容对象Document.
+        int docId = docs[i].doc;//得到查询结果文档的id（Lucene内部分配的id）
+        Document doc = searcher.Doc(docId);//找到文档id对应的文档详细信息
+        this.listBox1.Items.Add(doc.Get("number") + "\n");// 取出放进字段的值
+        this.listBox1.Items.Add(doc.Get("body") + "\n");
+        this.listBox1.Items.Add("-----------------------\n");
+    }
+}
+
+
+--------
+
+// 注意：在后台加 HTML标签会导致前台原样输出，可以通过
+// @MvcHtmlString.Create(book.Content)来解决
+
+【使用lucene.Net实现MVC搜索：】
+
+步骤：
+
+步骤：
+1. 引入连个dll
+Luence.Net.dll
+log4net.dll
+PanGu.dll
+PanGu.Lucene.Analyzer.dll
+PanGu.HighLight.dll
+
+
+2. 把那个存储分词的文件夹复制到目录中，并按下F4，将属性选择始终复制。
+我测试的项目是放在doct这个文件夹中的。并在项目中创建一个名为lucenedir的文件夹用来存储内容。
+
+
+
+3. 可以通过下载 DICManager 盘古分词打开软件向那个doct文件夹中动态的添加分词。
+添加完分词后点击保存，然后替换掉原来的恶doc.dot文件就行。
+
+
+4. Model中的类
+public class BookVieModel
+{
+    public int Id { get; set; }
+    public string Title { get; set; }
+    public string Content { get; set; }
+    public LuceneTypeEnum LuceneTypeEnum { get; set; }
+}
+
+public enum LuceneTypeEnum
+{
+    /// <summary>
+    /// 添加
+    /// </summary>
+    Add,
+    /// <summary>
+    /// 删除
+    /// </summary>
+    Delete
+}
+
+// 这个类采用了单例模式，使用了队列来解决并发添加的问题
+public sealed class IndexManager
+{
+
+    private static readonly IndexManager indexManager = new IndexManager();
+    private IndexManager()
+    {
+    }
+    public static IndexManager GetInstance()
+    {
+        return indexManager;
+        
+    }
+    public Queue<BookVieModel> queue = new Queue<BookVieModel>();
+    /// <summary>
+    /// 向队列中添加数据
+    /// </summary>
+    /// <param name="id"></param>
+    /// <param name="title"></param>
+    /// <param name="content"></param>
+    public void AddQueue(int id, string title, string content)
+    {
+        BookVieModel viewModel = new BookVieModel();
+        viewModel.Id = id;
+        viewModel.Title = title;
+        viewModel.Content = content;
+        viewModel.LuceneTypeEnum = LuceneTypeEnum.Add;
+        queue.Enqueue(viewModel);
+    }
+    /// <summary>
+    /// 要删除的数据
+    /// </summary>
+    /// <param name="id"></param>
+    public void DeleteQueue(int id)
+    {
+        BookVieModel viewModel = new BookVieModel();
+        viewModel.Id = id;
+        viewModel.LuceneTypeEnum = LuceneTypeEnum.Delete;
+        queue.Enqueue(viewModel);
+    }
+
+
+    /// <summary>
+    /// 开始一个线程（在Global.cs中的Application_start中调用）
+    /// </summary>
+    public void StartThread()
+    {
+        Thread thread = new Thread(WriteIndexContent);
+        thread.IsBackground = true;
+        thread.Start();
+    }
+    /// <summary>
+    /// 检查队列中是否有数据，如果有数据获取。
+    /// </summary>
+    private void WriteIndexContent()
+    {
+        while (true)
+        {
+            if (queue.Count > 0)
+            {
+                CreateIndexContent();
+            }
+            else
+            {
+                Thread.Sleep(3000);
+            }
+        }
+    }
+    private void CreateIndexContent()
+    {
+        string indexPath = @"C:\Users\杨ShineLon\Desktop\Lucene.Net的使用\在MVC中使用Lucene.Net进行搜索\lucenedir"; //@"C:\lucenedir";//注意和磁盘上文件夹的大小写一致，否则会报错。将创建的分词内容放在该目录下。//将路径写到配置文件中。
+        FSDirectory directory = FSDirectory.Open(new DirectoryInfo(indexPath), new NativeFSLockFactory());//指定索引文件(打开索引目录) FS指的是就是FileSystem
+        bool isUpdate = IndexReader.IndexExists(directory);//IndexReader:对索引进行读取的类。该语句的作用：判断索引库文件夹是否存在以及索引特征文件是否存在。
+        if (isUpdate)
+        {
+            //同时只能有一段代码对索引库进行写操作。当使用IndexWriter打开directory时会自动对索引库文件上锁。
+            //如果索引目录被锁定（比如索引过程中程序异常退出），则首先解锁（提示一下：如果我现在正在写着已经加锁了，但是还没有写完，这时候又来一个请求，那么不就解锁了吗？这个问题后面会解决）
+            if (IndexWriter.IsLocked(directory))
+            {
+                IndexWriter.Unlock(directory);
+            }
+        }
+        IndexWriter writer = new IndexWriter(directory, new PanGuAnalyzer(), !isUpdate, Lucene.Net.Index.IndexWriter.MaxFieldLength.UNLIMITED);//向索引库中写索引。这时在这里加锁。
+                                                                                                                                               //如果队列中有数据，获取队列中的数据写到Lucene.Net中。
+        while (queue.Count > 0)
+        {
+            BookVieModel viewModel = queue.Dequeue();
+            writer.DeleteDocuments(new Term("Id", viewModel.Id.ToString()));//删除
+            if (viewModel.LuceneTypeEnum == LuceneTypeEnum.Delete)
+            {
+                continue;
+            }
+            Document document = new Document();//表示一篇文档。
+            //Field.Store.YES:表示是否存储原值。只有当Field.Store.YES在后面才能用doc.Get("number")取出值来.Field.Index. NOT_ANALYZED:不进行分词保存
+            document.Add(new Field("Id", viewModel.Id.ToString(), Field.Store.YES, Field.Index.NOT_ANALYZED));
+
+            //Field.Index. ANALYZED:进行分词保存:也就是要进行全文的字段要设置分词 保存（因为要进行模糊查询）
+
+            //Lucene.Net.Documents.Field.TermVector.WITH_POSITIONS_OFFSETS:不仅保存分词还保存分词的距离。
+            document.Add(new Field("title", viewModel.Title, Field.Store.YES, Field.Index.ANALYZED, Lucene.Net.Documents.Field.TermVector.WITH_POSITIONS_OFFSETS));
+            document.Add(new Field("content", viewModel.Content, Field.Store.YES, Field.Index.ANALYZED, Lucene.Net.Documents.Field.TermVector.WITH_POSITIONS_OFFSETS));
+            writer.AddDocument(document);
+
+        }
+        writer.Close();//会自动解锁。
+        directory.Close();//不要忘了C
+    }
+}
+
+
+5. Controller中
+public class HomeController : Controller
+{
+    // GET: Home
+    public ActionResult Index()
+    {
+        ItcastCmsEntities db = new ItcastCmsEntities();
+        //var books = db.Books.ToList();
+        //ViewBag.books = books;
+        return View();
+    }
+
+    /// <summary>
+    /// 进行搜索
+    /// </summary>
+    /// <returns></returns>
+    public ActionResult Search()
+    {
+        string kw = Request["kw"]; // 获取用户输入的搜索内容
+        string indexPath = Server.MapPath("~/lucenedir"); // 从哪里搜索
+
+        // 对用户输入的内容进行分割
+        List<string> kws = new List<string>();  // 定义一个集合用来存储分割后的分词
+        Analyzer analyzer = new PanGuAnalyzer();
+        TokenStream tokenStream = analyzer.TokenStream("", new StringReader(kw.ToString()));
+        Lucene.Net.Analysis.Token token = null;
+        while ((token = tokenStream.Next()) != null)
+        {
+            kws.Add(token.TermText());
+        }
+
+        FSDirectory directory = FSDirectory.Open(new DirectoryInfo(indexPath), new NoLockFactory());
+        IndexReader reader = IndexReader.Open(directory, true);
+        IndexSearcher searcher = new IndexSearcher(reader);
+        //搜索条件
+
+        // 注意：这个类只可以进行单个列条件搜索，如果想要实现多个条件搜索要使用另外一个类
+        // 进行多条件搜索使用BooleanQuery
+        PhraseQuery query = new PhraseQuery();
+
+        foreach (var word in kws)
+        {
+            query.Add(new Term("content", word)); // 向content这个列进行搜索
+        }
+
+        query.SetSlop(100);//多个查询条件的词之间的最大距离.在文章中相隔太远 也就无意义.（例如 “大学生”这个查询条件和"简历"这个查询条件之间如果间隔的词太多也就没有意义了。）
+        
+
+        //TopScoreDocCollector是盛放查询结果的容器
+        TopScoreDocCollector collector = TopScoreDocCollector.create(1000, true);
+        searcher.Search(query, null, collector);//根据query查询条件进行查询，查询结果放入collector容器
+        ScoreDoc[] docs = collector.TopDocs(0, collector.GetTotalHits()).scoreDocs;//得到所有查询结果中的文档,GetTotalHits():表示总条数   TopDocs(300, 20);//表示得到300（从300开始），到320（结束）的文档内容.
+
+        // 创建一个list集合用来存储搜索到的结果
+        List<BookVieModel> bookList = new List<BookVieModel>();
+        for (int i = 0; i < docs.Length; i++)
+        {
+           
+
+            //搜索ScoreDoc[]只能获得文档的id,这样不会把查询结果的Document一次性加载到内存中。降低了内存压力，需要获得文档的详细内容的时候通过searcher.Doc来根据文档id来获得文档的详细内容对象Document.
+            int docId = docs[i].doc;//得到查询结果文档的id（Lucene内部分配的id）
+            Document doc = searcher.Doc(docId);//找到文档id对应的文档详细信息
+
+            BookVieModel model = new BookVieModel();
+            model.Id = Convert.ToInt32(doc.Get("Id")); // 注意：这些字段要和在添加搜索词库的时候保持一致
+            model.Title = CreateHightLight(kw,doc.Get("title")); // 注意：这些字段要和在添加搜索词库的时候保持一致
+            // 对搜索到结果中的搜索词进行高亮显示
+            model.Content = CreateHightLight(kw,doc.Get("content")); // 注意：这些字段要和在添加搜索词库的时候保持一致
+
+            bookList.Add(model);
+        }
+        ViewBag.books = bookList;
+        ViewBag.kw = kw;
+        return View("Index");
+    }
+
+    /// <summary>
+    /// 创建搜索库(在初始化搜索词库的时候使用)
+    /// </summary>
+    /// <returns></returns>
+    public ActionResult GetSearchData()
+    {
+        string indexPath = Server.MapPath("~/lucenedir");//@"C:\Users\杨ShineLon\Desktop\lucenedir";//注意和磁盘上文件夹的大小写一致，否则会报错。将创建的分词内容放在该目录下。
+        FSDirectory directory = FSDirectory.Open(new DirectoryInfo(indexPath), new NativeFSLockFactory());//指定索引文件(打开索引目录) FS指的是就是FileSystem
+        bool isUpdate = IndexReader.IndexExists(directory);//IndexReader:对索引进行读取的类。该语句的作用：判断索引库文件夹是否存在以及索引特征文件是否存在。
+        if (isUpdate)
+        {
+            //同时只能有一段代码对索引库进行写操作。当使用IndexWriter打开directory时会自动对索引库文件上锁。
+            //如果索引目录被锁定（比如索引过程中程序异常退出），则首先解锁（提示一下：如果我现在正在写着已经加锁了，但是还没有写完，这时候又来一个请求，那么不就解锁了吗？这个问题后面会解决）
+            if (IndexWriter.IsLocked(directory))
+            {
+                IndexWriter.Unlock(directory);
+            }
+        }
+        IndexWriter writer = new IndexWriter(directory, new PanGuAnalyzer(), !isUpdate, Lucene.Net.Index.IndexWriter.MaxFieldLength.UNLIMITED);//向索引库中写索引。这时在这里加锁。
+
+        // 将数据库中的数据遍历添加到搜索库中
+        ItcastCmsEntities db = new ItcastCmsEntities();
+        List<Books> books = db.Books.ToList();
+        foreach (var book in books)
+        {
+            Document document = new Document();//表示一篇文档。
+
+            //Field.Store.YES:表示是否存储原值。只有当Field.Store.YES在后面才能用doc.Get("number")取出值来.Field.Index. NOT_ANALYZED:不进行分词保存
+            // 向文档中添加列。需要哪些字段就添加那些字段
+            document.Add(new Field("Id", book.Id.ToString(), Field.Store.YES, Field.Index.NOT_ANALYZED));
+            document.Add(new Field("title", book.Title, Field.Store.YES, Field.Index.ANALYZED, Lucene.Net.Documents.Field.TermVector.WITH_POSITIONS_OFFSETS));
+            document.Add(new Field("content", book.ContentDescription, Field.Store.YES, Field.Index.ANALYZED, Lucene.Net.Documents.Field.TermVector.WITH_POSITIONS_OFFSETS));
+
+            writer.AddDocument(document);
+        }
+
+        writer.Close();//会自动解锁。
+        directory.Close();//不要忘了Close，否则索引结果搜不到
+
+        return Content("ok");
+    }
+
+    /// <summary>
+    /// 进行高亮显示搜索词
+    /// </summary>
+    /// <param name="keywords"></param>
+    /// <param name="Content"></param>
+    /// <returns></returns>
+    public static string CreateHightLight(string keywords, string Content)
+    {
+        // 注意：在后台加 HTML标签会导致前台原样输出，可以通过
+        // @MvcHtmlString.Create(book.Content)来解决
+        PanGu.HighLight.SimpleHTMLFormatter simpleHTMLFormatter =
+         new PanGu.HighLight.SimpleHTMLFormatter("<font color=\"red\">", "</font>");
+        //创建Highlighter ，输入HTMLFormatter 和盘古分词对象Semgent
+        PanGu.HighLight.Highlighter highlighter =
+        new PanGu.HighLight.Highlighter(simpleHTMLFormatter,
+        new Segment());
+        //设置每个摘要段的字符数
+        highlighter.FragmentSize = 150;
+        //获取最匹配的摘要段
+        return highlighter.GetBestFragment(keywords, Content);
+
+    }
+
+    /// <summary>
+    /// 往lucene.net中添加数据
+    /// </summary>
+    /// <returns></returns>
+    public ActionResult AddDataToLucene()
+    {
+        Books model = new Books();
+        model.AurhorDescription = "jlkfdjf";
+        model.Author = "asfasd";
+        model.CategoryId = 1;
+        model.Clicks = 1;
+        model.ContentDescription = "Ajax高级编程";
+        model.EditorComment = "adfsadfsadf";
+        model.ISBN = "111111111111111111";
+        model.PublishDate = DateTime.Now;
+        model.PublisherId = 72;
+        model.Title = "Ajax";
+        model.TOC = "aaaaaaaaaaaaaaaa";
+        model.UnitPrice = 22.3m;
+        model.WordsCount = 1234;
+        //1.将数据先存储到数据库中。获取刚插入的数据的主键ID值。
+        IndexManager.GetInstance().AddQueue(9999, model.Title, model.ContentDescription);//向队列中添加
+        return View("Index");
+    }
+    /// <summary>
+    /// 往lucene.net中删除数据
+    /// </summary>
+    public ActionResult DeleteDataToLucene()
+    {
+        // 要先删除数据库中，然后再删lucene.net中的
+        IndexManager.GetInstance().DeleteQueue(9999);
+        return View("Index");
+    }
+}
+
+
+6. View中的Index
+
+
+@{
+    Layout = null;
+}
+@using 在MVC中使用Lucene.Net进行搜索.Models
+<!DOCTYPE html>
+
+<html>
+<head>
+    <meta name="viewport" content="width=device-width" />
+    <title>Index</title>
+</head>
+<style>
+    .s_btn {
+        width: 100px;
+        height: 36px;
+        color: #fff;
+        font-size: 15px;
+        letter-spacing: 1px;
+        background: #3385ff;
+        border-bottom: 1px solid #2d78f4;
+        outline: medium;
+        -webkit-appearance: none;
+        -webkit-border-radius: 0;
+        border:0;
+    }
+    .s_ipt_wr {
+        border: 1px solid #b6b6b6;
+        border-color: #7b7b7b #b6b6b6 #b6b6b6 #7b7b7b;
+        background: #fff;
+        display: inline-block;
+        vertical-align: top;
+        width: 339px;
+        height:30px;
+        margin-right: 0;
+        border-right-width: 0;
+        border-color: #b8b8b8 transparent #ccc #b8b8b8;
+        overflow: hidden;
+        padding-left:15px;
+    }
+    li{
+        list-style:none;
+       
+    }
+    a:visited,a:checked {
+        color: rgb(0, 0, 204);
+    }
+    a:hover{
+        color:red;
+    }
+</style>
+<body>
+    <form action="/Home/Search" method="get" style="display:inline-block;">
+        <input type="text" id="kw" name="kw" value="@ViewBag.kw" placeholder="请输入要搜索的内容" class="s_ipt_wr" />
+        <input type="submit" name="name" value="百度一下" class="s_btn" />
+
+    </form>
+    &nbsp;&nbsp;&nbsp;&nbsp;
+    <form action="/Home/GetSearchData" method="post" style="display:inline-block;">
+
+        <input type="submit" name="name" value="创建搜索库" class="s_btn" />
+    </form>
+    &nbsp;&nbsp;&nbsp;&nbsp;
+    <form action="/Home/AddDataToLucene" method="post" style="display:inline-block;">
+
+        <input type="submit" style="width:250px;" name="name" value="往Lucene.Net中添加数据" class="s_btn" />
+    </form>
+    &nbsp;&nbsp;&nbsp;&nbsp;
+    <form action="/Home/DeleteDataToLucene" method="post" style="display:inline-block;">
+
+        <input type="submit" style="width:250px;" name="name" value="往Lucene.Net中删除数据" class="s_btn" />
+    </form>
+    <br />
+
+    <br />
+    <br />
+
+    <ul>
+        @if (ViewBag.books != null)
+        {
+            <p>共有 @ViewBag.books.Count 条搜索结果。搜索结果如下：</p>
+            var i = 0;
+            foreach (var book in ViewBag.books)
+            {
+                i++;
+                <div style="width:95%;height:auto;margin-top:15px;">
+                    <li> 序号：@i</li>
+                    <li> Id：@book.Id</li>
+                    <li>标题：<a href="#">@MvcHtmlString.Create(book.Title)</a></li>
+                    <li style="margin-bottom:35px;">内容简介：@MvcHtmlString.Create(book.Content)</li>
+                </div>
+
+            }
+
+        }
+
+    </ul>
+</body>
+</html>
+
+
+
+7. Global.cs中
+protected void Application_Start()
+{
+    // 启动往lucene.net添加搜索词的线程
+    IndexManager.GetInstance().StartThread();
+
+    AreaRegistration.RegisterAllAreas();
+    RouteConfig.RegisterRoutes(RouteTable.Routes);
+}
+
+
+--------
+
+
+【luecnu.Net进行多条件搜索：】
+
+只要改下面代码就行，其他不用改
+
+ public ActionResult Search()
+{
+    string kw = Request["kw"]; // 获取用户输入的搜索内容
+    string indexPath = Server.MapPath("~/lucenedir"); // 从哪里搜索
+
+    // 对用户输入的内容进行分割
+    List<string> kws = new List<string>();  // 定义一个集合用来存储分割后的分词
+    Analyzer analyzer = new PanGuAnalyzer();
+    TokenStream tokenStream = analyzer.TokenStream("", new StringReader(kw.ToString()));
+    Lucene.Net.Analysis.Token token = null;
+    while ((token = tokenStream.Next()) != null)
+    {
+        kws.Add(token.TermText());
+    }
+
+    FSDirectory directory = FSDirectory.Open(new DirectoryInfo(indexPath), new NoLockFactory());
+    IndexReader reader = IndexReader.Open(directory, true);
+    IndexSearcher searcher = new IndexSearcher(reader);
+    //搜索条件
+
+    // 注意：这个类只可以进行单个列条件搜索，如果想要实现多个条件搜索要使用另外一个类
+    // 进行多条件搜索使用BooleanQuery
+    PhraseQuery queryTitle = new PhraseQuery();
+
+    foreach (var word in kws)
+    {
+        queryTitle.Add(new Term("title", word)); // 向content这个列进行搜索
+    }
+
+    queryTitle.SetSlop(100);//多个查询条件的词之间的最大距离.在文章中相隔太远 也就无意义.（例如 “大学生”这个查询条件和"简历"这个查询条件之间如果间隔的词太多也就没有意义了。）
+    
+    PhraseQuery queryContent = new PhraseQuery();
+
+    foreach (var word in kws)
+    {
+        queryContent.Add(new Term("content", word)); // 向content这个列进行搜索
+    }
+
+    queryContent.SetSlop(100);//多个查询条件的词之间的最大距离.在文章中相隔太远 也就无意义.（例如 “大学生”这个查询条件和"简历"这个查询条件之间如果间隔的词太多也就没有意义了。）
+    
+    BooleanQuery query = new BooleanQuery();
+    query.Add(queryTitle,BooleanClause.Occur.SHOULD);
+    query.Add(queryContent,BooleanClause.Occur.SHOULD);
+
+    //TopScoreDocCollector是盛放查询结果的容器
+    TopScoreDocCollector collector = TopScoreDocCollector.create(1000, true);
+    searcher.Search(query, null, collector);//根据query查询条件进行查询，查询结果放入collector容器
+    ScoreDoc[] docs = collector.TopDocs(0, collector.GetTotalHits()).scoreDocs;//得到所有查询结果中的文档,GetTotalHits():表示总条数   TopDocs(300, 20);//表示得到300（从300开始），到320（结束）的文档内容.
+
+    // 创建一个list集合用来存储搜索到的结果
+    List<BookVieModel> bookList = new List<BookVieModel>();
+    for (int i = 0; i < docs.Length; i++)
+    {
+       
+
+        //搜索ScoreDoc[]只能获得文档的id,这样不会把查询结果的Document一次性加载到内存中。降低了内存压力，需要获得文档的详细内容的时候通过searcher.Doc来根据文档id来获得文档的详细内容对象Document.
+        int docId = docs[i].doc;//得到查询结果文档的id（Lucene内部分配的id）
+        Document doc = searcher.Doc(docId);//找到文档id对应的文档详细信息
+
+        BookVieModel model = new BookVieModel();
+        model.Id = Convert.ToInt32(doc.Get("Id")); // 注意：这些字段要和在添加搜索词库的时候保持一致
+        model.Title = CreateHightLight(kw,doc.Get("title")); // 注意：这些字段要和在添加搜索词库的时候保持一致
+        // 对搜索到结果中的搜索词进行高亮显示
+        model.Content = CreateHightLight(kw,doc.Get("content")); // 注意：这些字段要和在添加搜索词库的时候保持一致
+
+        bookList.Add(model);
+    }
+    ViewBag.books = bookList;
+    ViewBag.kw = kw;
+    return View("Index");
+}

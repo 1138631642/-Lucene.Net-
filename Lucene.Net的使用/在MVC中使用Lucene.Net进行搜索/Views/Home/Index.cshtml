@@ -1,0 +1,99 @@
+﻿
+@{
+    Layout = null;
+}
+@using 在MVC中使用Lucene.Net进行搜索.Models
+<!DOCTYPE html>
+
+<html>
+<head>
+    <meta name="viewport" content="width=device-width" />
+    <title>Index</title>
+</head>
+<style>
+    .s_btn {
+        width: 100px;
+        height: 36px;
+        color: #fff;
+        font-size: 15px;
+        letter-spacing: 1px;
+        background: #3385ff;
+        border-bottom: 1px solid #2d78f4;
+        outline: medium;
+        -webkit-appearance: none;
+        -webkit-border-radius: 0;
+        border:0;
+    }
+    .s_ipt_wr {
+        border: 1px solid #b6b6b6;
+        border-color: #7b7b7b #b6b6b6 #b6b6b6 #7b7b7b;
+        background: #fff;
+        display: inline-block;
+        vertical-align: top;
+        width: 339px;
+        height:30px;
+        margin-right: 0;
+        border-right-width: 0;
+        border-color: #b8b8b8 transparent #ccc #b8b8b8;
+        overflow: hidden;
+        padding-left:15px;
+    }
+    li{
+        list-style:none;
+       
+    }
+    a:visited,a:checked {
+        color: rgb(0, 0, 204);
+    }
+    a:hover{
+        color:red;
+    }
+</style>
+<body>
+    <form action="/Home/Search" method="get" style="display:inline-block;">
+        <input type="text" id="kw" name="kw" value="@ViewBag.kw" placeholder="请输入要搜索的内容" class="s_ipt_wr" />
+        <input type="submit" name="name" value="百度一下" class="s_btn" />
+
+    </form>
+    &nbsp;&nbsp;&nbsp;&nbsp;
+    <form action="/Home/GetSearchData" method="post" style="display:inline-block;">
+
+        <input type="submit" name="name" value="创建搜索库" class="s_btn" />
+    </form>
+    &nbsp;&nbsp;&nbsp;&nbsp;
+    <form action="/Home/AddDataToLucene" method="post" style="display:inline-block;">
+
+        <input type="submit" style="width:250px;" name="name" value="往Lucene.Net中添加数据" class="s_btn" />
+    </form>
+    &nbsp;&nbsp;&nbsp;&nbsp;
+    <form action="/Home/DeleteDataToLucene" method="post" style="display:inline-block;">
+
+        <input type="submit" style="width:250px;" name="name" value="往Lucene.Net中删除数据" class="s_btn" />
+    </form>
+    <br />
+
+    <br />
+    <br />
+
+    <ul>
+        @if (ViewBag.books != null)
+        {
+            <p>共有 @ViewBag.books.Count 条搜索结果。搜索结果如下：</p>
+            var i = 0;
+            foreach (var book in ViewBag.books)
+            {
+                i++;
+                <div style="width:95%;height:auto;margin-top:15px;">
+                    <li> 序号：@i</li>
+                    <li> Id：@book.Id</li>
+                    <li>标题：<a href="#">@MvcHtmlString.Create(book.Title)</a></li>
+                    <li style="margin-bottom:35px;">内容简介：@MvcHtmlString.Create(book.Content)</li>
+                </div>
+
+            }
+
+        }
+
+    </ul>
+</body>
+</html>
